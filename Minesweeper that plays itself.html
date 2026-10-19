@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Minesweeper that plays itself</title>
+<style>
+:root{--bg:#eef1ee;--panel:#fff;--ink:#16212b;--mute:#5d6b78;--cov:#b9c6cf;--covhi:#dbe5eb;--covlo:#8c9ba6;--rev:#e3e9e5;--safe:#0f9d6a;--guess:#c98a00;--bad:#c62f3e;--line:#c9d3d9;
+--n1:#1d5fd1;--n2:#0f8a4b;--n3:#d02f3f;--n4:#5b2ab8;--n5:#a35100;--n6:#07808a;--n7:#222;--n8:#666;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1820;--panel:#17232d;--ink:#e6edf1;--mute:#8fa1ae;--cov:#33495a;--covhi:#4b6578;--covlo:#1f2f3b;--rev:#0b1219;--safe:#3ddc97;--guess:#f2b134;--bad:#ff6b78;--line:#273745;
+--n1:#6aa3ff;--n2:#4fd68a;--n3:#ff7a86;--n4:#b79bff;--n5:#ffa24d;--n6:#4fd6e0;--n7:#e6edf1;--n8:#a0aab2}}
+:root[data-theme="dark"]{--bg:#0f1820;--panel:#17232d;--ink:#e6edf1;--mute:#8fa1ae;--cov:#33495a;--covhi:#4b6578;--covlo:#1f2f3b;--rev:#0b1219;--safe:#3ddc97;--guess:#f2b134;--bad:#ff6b78;--line:#273745;--n1:#6aa3ff;--n2:#4fd68a;--n3:#ff7a86;--n4:#b79bff;--n5:#ffa24d;--n6:#4fd6e0;--n7:#e6edf1;--n8:#a0aab2}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "Avenir Next","Segoe UI",system-ui,sans-serif;padding:16px}
+main{max-width:1000px;margin:0 auto;display:grid;gap:14px}
+h1{font-size:1.5rem;margin:0;letter-spacing:-.01em}
+p{margin:0;color:var(--mute);max-width:64ch}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--mute)} button:focus-visible,select:focus-visible,.c:focus-visible{outline:3px solid var(--safe);outline-offset:1px}
+button.go{background:var(--safe);color:#04130c;border-color:transparent;font-weight:600}
+.stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-variant-numeric:tabular-nums;color:var(--mute)}
+.stats b{color:var(--ink)}
+.wrap{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) 300px;align-items:start}
+@media(max-width:820px){.wrap{grid-template-columns:1fr}}
+.boardbox{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+#board{display:grid;gap:0;width:max-content;margin:0 auto;user-select:none}
+.c{width:var(--s);height:var(--s);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:calc(var(--s)*.58);font-variant-numeric:tabular-nums;border:0;border-radius:0;padding:0;background:var(--cov);box-shadow:inset 2px 2px 0 var(--covhi),inset -2px -2px 0 var(--covlo);color:var(--ink)}
+.c.r{background:var(--rev);box-shadow:inset 0 0 0 1px var(--line);cursor:default}
+.c.mine{background:var(--bad)}
+.c.t-safe{outline:3px solid var(--safe);outline-offset:-3px;z-index:1}
+.c.t-guess{outline:3px solid var(--guess);outline-offset:-3px;z-index:1}
+.n1{color:var(--n1)}.n2{color:var(--n2)}.n3{color:var(--n3)}.n4{color:var(--n4)}.n5{color:var(--n5)}.n6{color:var(--n6)}.n7{color:var(--n7)}.n8{color:var(--n8)}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:10px}
+#now{font-weight:600;min-height:4.6em}
+#now.safe{color:var(--safe)}#now.guess{color:var(--guess)}#now.bad{color:var(--bad)}
+#log{margin:0;padding-left:18px;color:var(--mute);font-size:.88rem;max-height:240px;overflow:auto}
+label{display:flex;gap:8px;align-items:center;color:var(--mute)}
+input[type=range]{flex:1}
+@media(prefers-reduced-motion:no-preference){.c{transition:background .12s}}
+</style>
+</head>
+<body>
+<main>
+<div>
+<h1>Minesweeper that plays itself</h1>
+<p>The AI sees only what a player sees: revealed numbers and flags. It proves safe cells and mines, and when nothing is provable it takes the lowest-risk guess and says so.</p>
+</div>
+<div class="bar">
+<select id="lvl" aria-label="Difficulty"><option value="9,9,10">Beginner 9×9</option><option value="16,16,40" selected>Intermediate 16×16</option><option value="16,30,99">Expert 16×30</option></select>
+<button id="new">New game</button>
+<button id="step">Step</button>
+<button id="auto" class="go">Auto-play</button>
+<label>Speed <input id="spd" type="range" min="1" max="10" value="6" aria-label="Speed"></label>
+</div>
+<div class="stats"><span>Mines left <b id="left">0</b></span><span>Moves <b id="mv">0</b></span><span>Guesses <b id="gs">0</b></span><span>Won <b id="w">0</b></span><span>Lost <b id="l">0</b></span></div>
+<div class="wrap">
+<div class="boardbox"><div id="board" role="grid" aria-label="Minesweeper board"></div></div>
+<aside class="side">
+<div id="now" aria-live="polite">Press Step or Auto-play. The first click is always a guess.</div>
+<ol id="log"></ol>
+<p>You can also click cells yourself (right-click or long-press to flag). Green outline: proven. Amber outline: a guess.</p>
+</aside>
+</div>
+</main>
+<script>
+(function(){
+let R,C,M,mine,rev,flag,started,over,won,moves,guesses,wins=0,losses=0,timer=null,target=null;
+const $=id=>document.getElementById(id),B=$('board');
+const nb=(r,c)=>{const o=[];for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){if((i||j)&&r+i>=0&&r+i<R&&c+j>=0&&c+j<C)o.push([r+i,c+j])}return o};
+const K=(r,c)=>r*C+c, pos=k=>`row ${Math.floor(k/C)+1}, column ${k%C+1}`;
+function init(){const [r,c,m]=$('lvl').value.split(',').map(Number);R=r;C=c;M=m;
+ mine=Array(R*C).fill(0);rev=Array(R*C).fill(0);flag=Array(R*C).fill(0);started=over=won=false;moves=guesses=0;target=null;stop();
+ $('log').innerHTML='';say('Press Step or Auto-play. The first click is always a guess.','');build();stats()}
+function build(){B.style.gridTemplateColumns=`repeat(${C},var(--s))`;
+ const s=Math.max(22,Math.min(34,Math.floor((Math.min(innerWidth-60,980))/C)));B.style.setProperty('--s',s+'px');B.innerHTML='';
+ for(let k=0;k<R*C;k++){const b=document.createElement('button');b.className='c';b.dataset.k=k;b.setAttribute('role','gridcell');
+  b.onclick=()=>human(k,false);b.oncontextmenu=e=>{e.preventDefault();human(k,true)};
+  let t;b.ontouchstart=()=>{t=setTimeout(()=>{t=null;human(k,true)},450)};b.ontouchend=e=>{if(t===null)e.preventDefault();clearTimeout(t)};B.appendChild(b)}draw()}
+function num(k){const r=Math.floor(k/C),c=k%C;return nb(r,c).reduce((a,[i,j])=>a+mine[K(i,j)],0)}
+function place(first){const r=Math.floor(first/C),c=first%C,ban=new Set([first,...nb(r,c).map(([i,j])=>K(i,j))]);
+ const pool=[];for(let k=0;k<R*C;k++)if(!ban.has(k))pool.push(k);
+ for(let i=pool.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[pool[i],pool[j]]=[pool[j],pool[i]]}
+ pool.slice(0,M).forEach(k=>mine[k]=1);started=true}
+function reveal(k){if(over||rev[k]||flag[k])return;if(!started)place(k);
+ if(mine[k]){over=true;rev[k]=1;losses++;return}
+ const st=[k];while(st.length){const q=st.pop();if(rev[q]||flag[q])continue;rev[q]=1;
+  if(!num(q)){nb(Math.floor(q/C),q%C).forEach(([i,j])=>{if(!rev[K(i,j)])st.push(K(i,j))})}}
+ if(rev.reduce((a,v)=>a+v,0)===R*C-M){over=won=true;wins++;for(let q=0;q<R*C;q++)if(mine[q])flag[q]=1}}
+function draw(){const cs=B.children;for(let k=0;k<R*C;k++){const e=cs[k];let cl='c',tx='';
+ if(rev[k]){cl+=' r';if(mine[k]){cl+=' mine';tx='✹'}else{const n=num(k);if(n){cl+=' n'+n;tx=n}}}
+ else if(over&&mine[k]&&!flag[k]){cl+=' r';tx='✹'}
+ else if(flag[k])tx='⚑';
+ if(target&&target.k===k)cl+=target.guess?' t-guess':' t-safe';
+ e.className=cl;e.textContent=tx}}
+function stats(){$('left').textContent=M-flag.reduce((a,v)=>a+v,0);$('mv').textContent=moves;$('gs').textContent=guesses;$('w').textContent=wins;$('l').textContent=losses}
+function say(t,cls){const n=$('now');n.textContent=t;n.className=cls||'';if(t){const li=document.createElement('li');li.textContent=t;const L=$('log');L.appendChild(li);while(L.children.length>40)L.removeChild(L.firstChild);L.scrollTop=1e9}}
+function human(k,f){if(over)return;if(f){if(!rev[k])flag[k]^=1}else reveal(k);target=null;draw();stats();finish()}
+
+/* ---------- solver: sees only revealed numbers and flags ---------- */
+function comb(n,k){if(k<0||k>n)return 0;k=Math.min(k,n-k);let x=1;for(let i=1;i<=k;i++)x=x*(n-k+i)/i;return x}
+function conv(a,b){const o=new Map();for(const[i,x]of a)for(const[j,y]of b)o.set(i+j,(o.get(i+j)||0)+x*y);return o}
+function enumComp(cells,cons,limit){const ix=new Map(cells.map((c,i)=>[c,i])),cc=cons.map(c=>c.cells.map(x=>ix.get(x))),
+ byc=cells.map(()=>[]);cc.forEach((m,i)=>m.forEach(j=>byc[j].push(i)));
+ const rem=cons.map(c=>c.m),un=cc.map(m=>m.length),as=Array(cells.length).fill(0),st=new Map();let nodes=0;
+ (function rec(i,m){if(++nodes>limit)throw 0;if(i===cells.length){let e=st.get(m);if(!e){e={n:0,per:Array(cells.length).fill(0)};st.set(m,e)}e.n++;as.forEach((v,j)=>{if(v)e.per[j]++});return}
+  for(let v=0;v<2;v++){let ok=true;for(const c of byc[i]){un[c]--;rem[c]-=v}
+   for(const c of byc[i])if(rem[c]<0||rem[c]>un[c]){ok=false;break}
+   if(ok){as[i]=v;rec(i+1,m+v)}as[i]=0;for(const c of byc[i]){un[c]++;rem[c]+=v}}})(0,0);
+ return st}
+function solve(){
+ const cov=[];let fl=0;for(let k=0;k<R*C;k++){if(!rev[k]&&!flag[k])cov.push(k);if(flag[k])fl++}
+ if(!rev.some(v=>v)&&!fl){const k=K(R>>1,C>>1);return{guess:{k,p:M/(R*C),why:`Nothing is revealed, so there is no information yet. This is a guess: opening in the middle gives the best chance of a large cascade.`}}}
+ const cons=[];
+ for(let k=0;k<R*C;k++){if(!rev[k])continue;const n=num(k);if(!n&&false)continue;
+  const ns=nb(Math.floor(k/C),k%C).map(([i,j])=>K(i,j)),cells=ns.filter(q=>!rev[q]&&!flag[q]),f=ns.filter(q=>flag[q]).length;
+  if(cells.length)cons.push({o:k,n,f,cells,m:n-f})}
+ const safe=new Map(),mn=new Map();
+ for(const c of cons){
+  if(c.m===0)c.cells.forEach(q=>safe.has(q)||safe.set(q,`The ${c.n} at ${pos(c.o)} already has ${c.f} confirmed neighbouring mine${c.f===1?'':'s'}, which accounts for its whole count. This neighbour is safe.`));
+  else if(c.m===c.cells.length)c.cells.forEach(q=>mn.has(q)||mn.set(q,`The ${c.n} at ${pos(c.o)} has ${c.cells.length} unrevealed neighbour${c.cells.length===1?'':'s'} and ${c.f} flagged. All of them must contain a mine.`))}
+ const by=new Map();cons.forEach(c=>c.cells.forEach(q=>(by.get(q)||by.set(q,[]).get(q)).push(c)));
+ for(const a of cons){const seen=new Set();for(const q of a.cells)for(const b of by.get(q)){if(a===b||seen.has(b))continue;seen.add(b);
+  if(a.cells.length<b.cells.length&&a.cells.every(x=>b.cells.includes(x))){const d=b.cells.filter(x=>!a.cells.includes(x)),dm=b.m-a.m,
+   why=`The ${a.n} at ${pos(a.o)} sees a subset of the cells around the ${b.n} at ${pos(b.o)}; the extra ${d.length} cell${d.length===1?'':'s'} hold ${b.m} − ${a.m} = ${dm} mine${dm===1?'':'s'}.`;
+   if(dm===0)d.forEach(x=>safe.has(x)||safe.set(x,why+' So this one is safe.'));else if(dm===d.length)d.forEach(x=>mn.has(x)||mn.set(x,why+' So it is a mine.'))}}}
+ /* exact enumeration over independent frontier components, weighted by the known total mine count */
+ let pr=null,exact=true;
+ try{const par=new Map();const f=x=>{while(par.get(x)!==x){par.set(x,par.get(par.get(x)));x=par.get(x)}return x};
+  cons.forEach(c=>{c.cells.forEach(q=>par.has(q)||par.set(q,q));c.cells.slice(1).forEach(q=>par.set(f(q),f(c.cells[0])))});
+  const g=new Map();cons.forEach(c=>{const r=f(c.cells[0]);if(!g.has(r))g.set(r,{cells:new Set(),cons:[]});c.cells.forEach(q=>g.get(r).cells.add(q));g.get(r).cons.push(c)});
+  const comps=[...g.values()].map(x=>{const cells=[...x.cells].sort((a,b)=>a-b);return{cells,st:enumComp(cells,x.cons,150000)}});
+  const fr=new Set(comps.flatMap(c=>c.cells)),oth=cov.filter(q=>!fr.has(q)),Mo=oth.length,Rm=M-fl;
+  const cnt=comps.map(c=>new Map([...c.st].map(([k,e])=>[k,e.n])));
+  const W=s=>comb(Mo,Rm-s);let all=new Map([[0,1]]);cnt.forEach(m=>all=conv(all,m));
+  let den=0;for(const[s,w]of all)den+=w*W(s);
+  if(den>0){pr=new Map();const sf=new Set(),mf=new Set();
+   comps.forEach((c,ci)=>{let rest=new Map([[0,1]]);cnt.forEach((m,j)=>{if(j!==ci)rest=conv(rest,m)});
+    const way=k=>{let t=0;for(const[s,w]of rest)t+=w*W(k+s);return t};
+    c.cells.forEach((q,j)=>{let mi=0,sa=0;for(const[k,e]of c.st){const w=way(k);mi+=e.per[j]*w;sa+=(e.n-e.per[j])*w}
+     pr.set(q,mi/den);if(mi===0)sf.add(q);else if(sa===0)mf.add(q)})});
+   if(Mo){let ex=0,ns=0;for(const[s,w]of all){const x=w*W(s);ex+=x*(Rm-s);ns+=x*(Mo-(Rm-s))}
+    oth.forEach(q=>pr.set(q,ex/(Mo*den)));if(ex===0)oth.forEach(q=>sf.add(q));else if(ns===0)oth.forEach(q=>mf.add(q))}
+   sf.forEach(q=>safe.has(q)||safe.set(q,`Checking every mine layout consistent with the board and the total of ${M} mines, this cell is safe in all of them.`));
+   mf.forEach(q=>mn.has(q)||mn.set(q,`Checking every mine layout consistent with the board and the total of ${M} mines, this cell is a mine in all of them.`));
+   pr.frontier=fr;pr.count=den}}catch(e){exact=false}
+ const res={safe,mn};
+ if(!safe.size&&!mn.size||!safe.size){
+  if(pr){const arr=[...pr.entries()].filter(([q])=>typeof q==='number');arr.sort((a,b)=>a[1]-b[1]||(pr.frontier.has(b[0])-pr.frontier.has(a[0]))||a[0]-b[0]);
+   const[q,p]=arr[0];const fv=[...new Set([...pr.frontier].map(x=>Math.round(pr.get(x)*100)))].sort((a,b)=>a-b);
+   res.msg=`No guaranteed safe move. ${fv.length?'Frontier risks range over '+fv.slice(0,6).join('%, ')+'%. ':''}`;
+   res.guess={k:q,p,why:`GUESS, not a certainty: ${pr.frontier.has(q)?'this frontier cell':'this cell away from the numbers'} has about a ${Math.round(p*100)}% chance of being a mine, the lowest available (exact count over weighted layouts).`}}
+  else if(!safe.size&&!mn.size){let best=null;cons.forEach(c=>c.cells.forEach(q=>{const p=c.m/c.cells.length;if(!best||p<best.p)best={k:q,p}}));
+   if(best)res.guess={k:best.k,p:best.p,why:`GUESS (approximate): the frontier is too large to enumerate, so this is the lowest local risk estimate, about ${Math.round(best.p*100)}%.`}}}
+ return res}
+
+function plan(){const s=solve();
+ if(s.safe&&s.safe.size){const[k,why]=s.safe.entries().next().value;return{k,flag:false,guess:false,why}}
+ if(s.mn&&s.mn.size){const[k,why]=s.mn.entries().next().value;return{k,flag:true,guess:false,why}}
+ if(s.guess)return{k:s.guess.k,flag:false,guess:true,why:(s.msg||'')+s.guess.why};
+ return null}
+function ai(){if(over)return false;const p=plan();if(!p){say('The visible information is not enough to decide. Pausing.','bad');return false}
+ target={k:p.k,guess:p.guess};draw();say(p.why,p.guess?'guess':'safe');moves++;
+ if(p.flag)flag[p.k]=1;else{if(p.guess)guesses++;reveal(p.k)}
+ setTimeout(()=>{target=null;draw()},Math.max(60,speed()*.8));stats();finish();return !over}
+function finish(){if(won)say('Game won! Every safe cell is revealed.','safe');else if(over)say('Game lost. '+(guesses?'The final click was a guess, not a proof.':'Stopping.'),'bad');if(over)stop();stats()}
+const speed=()=>1100-$('spd').value*100;
+function stop(){clearTimeout(timer);timer=null;$('auto').textContent='Auto-play';$('auto').classList.add('go')}
+function loop(){if(!timer)return;if(!ai()){stop();return}timer=setTimeout(loop,speed())}
+$('auto').onclick=()=>{if(timer){stop();say('Paused.','');return}if(over)init();timer=1;$('auto').textContent='Pause';$('auto').classList.remove('go');loop()};
+$('step').onclick=()=>{stop();if(over)init();ai()};
+$('new').onclick=init;$('lvl').onchange=init;addEventListener('resize',()=>{if(R)build()});
+init();
+})();
+</script>
+</body>
+</html>

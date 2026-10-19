@@ -1,0 +1,6 @@
+# Python >= 3.10 (tested here on 3.12 / Ubuntu 24.04). Pins are known-good minimums-to-tested ranges.
+numpy>=1.26,<3
+opencv-python-headless>=4.8,<5
+mss>=9.0,<11
+pyautogui>=0.9.54,<1
+pytest>=7.4          # tests only

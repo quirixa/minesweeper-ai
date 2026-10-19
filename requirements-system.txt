@@ -1,0 +1,8 @@
+# apt packages (not pip). Install with: sudo apt install $(grep -v '^#' requirements-system.txt)
+python3-venv
+python3-tk
+python3-dev
+scrot
+xdotool
+# xvfb is optional: only for running the virtual-display self-test
+xvfb
